@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GoPay API Dashboard (Demo)</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <h1>GoPay API Integration Demo</h1>
+        <p>Visualisasi UI untuk 3 API Publik (QRIS, VA, Dukcapil) berdasarkan konteks DDD.</p>
+
+        <div class="tab-nav">
+            <button class="tab-link active" onclick="openTab(event, 'qris')">QRIS Payment (Core Domain)</button>
+            <button class="tab-link" onclick="openTab(event, 'funding')">VA Top-Up (Funding)</button>
+            <button class="tab-link" onclick="openTab(event, 'kyc')">eKYC (User Management)</button>
+        </div>
+
+        <div id="qris" class="tab-content active">
+            <h2>QRIS Payment (Payment Context)</h2>
+            <p>Alur ini memanggil <code>QRIS API</code>. Di backend, API ini akan memanggil <code>Payment Context</code> (untuk mencatat) dan <code>Transfer Context</code> (untuk mengurangi saldo Wallet). Ia juga harus memanggil <code>KYC Context</code> untuk cek limit.</p>
+
+            <div class="form-section">
+                <h3>Simulasi Scan QRIS</h3>
+                <label for="qris_merchant">Merchant</label>
+                <input type="text" id="qris_merchant" value="Warung Kopi" disabled>
+                
+                <label for="qris_amount">Jumlah Pembayaran</label>
+                <input type="number" id="qris_amount" placeholder="e.g., 50000" required>
+                
+                <button id="btn-qris" class="button button-primary button-fill">Bayar Sekarang</button>
+            </div>
+
+            <h3></h3>
+            <div id="qris-results" class="solution-container">
+                </div>
+        </div>
+
+        <div id="funding" class="tab-content">
+            <h2>Virtual Account Top-Up (Funding Context)</h2>
+            <p>Alur ini memanggil <code>Bank VA API</code>. Di backend, API ini akan memanggil <code>Funding Context</code> (mencatat top-up) dan <code>Transfer Context</code> (menambah saldo Wallet).</p>
+
+            <div class="form-section">
+                <h3>Simulasi Notifikasi (Webhook) dari Bank</h3>
+                <label for="va_bank">Bank (Eksternal)</label>
+                <input type="text" id="va_bank" value="Bank BCA (Virtual Account)" disabled>
+                
+                <label for="va_amount">Jumlah Top-Up</label>
+                <input type="number" id="va_amount" placeholder="e.g., 200000" required>
+                
+                <button id="btn-va" class="button button-primary button-fill">Simulasikan Penerimaan Webhook</button>
+            </div>
+
+            <h3></h3>
+            <div id="va-results" class="solution-container">
+                </div>
+        </div>
+
+        <div id="kyc" class="tab-content">
+            <h2>eKYC & Dukcapil Screening (KYC Context)</h2>
+            <p>Alur ini memanggil <code>Dukcapil API</code>. Di backend, API ini akan memanggil <code>KYC Context</code> (membuat submisi) dan <code>Authentication Context</code> (meng-upgrade status user).</p>
+
+            <div class="form-section">
+                <h3>Simulasi Verifikasi eKYC</h3>
+                <label for="kyc_nik">NIK (Sesuai KTP)</label>
+                <input type="text" id="kyc_nik" placeholder="3201..." required>
+                
+                <label for="kyc_name">Nama Lengkap (Sesuai KTP)</label>
+                <input type="text" id="kyc_name" placeholder="Budi Santoso" required>
+                
+                <button id="btn-kyc" class="button button-primary button-fill">Mulai Verifikasi (Call Dukcapil API)</button>
+            </div>
+
+            <h3></h3>
+            <div id="kyc-results" class="solution-container">
+                </div>
+        </div>
+
+    </div>
+
+    <script>
+        function openTab(evt, tabName) {
+            var i, tabcontent, tablinks;
+            tabcontent = document.getElementsByClassName("tab-content");
+            for (i = 0; i < tabcontent.length; i++) {
+                tabcontent[i].classList.remove("active");
+            }
+
+            tablinks = document.getElementsByClassName("tab-link");
+            for (i = 0; i < tablinks.length; i++) {
+                tablinks[i].classList.remove("active");
+            }
+
+            document.getElementById(tabName).classList.add("active");
+            evt.currentTarget.classList.add("active");
+        }
+    </script>
+
+    <script>
+        function displayResult(containerId, title, status, data) {
+            const container = document.getElementById(containerId);
+            
+            container.innerHTML = '';
+            
+            const box = document.createElement('div');
+            
+            let boxClass = 'bin-box';
+            if (status === 'Success') boxClass += ' bin-box-success';
+            if (status === 'Error') boxClass += ' bin-box-error';
+            box.className = boxClass;
+
+            const titleEl = document.createElement('strong');
+            titleEl.textContent = `${title} - [${status}]`;
+            
+            const hr = document.createElement('hr');
+            
+            const dataEl = document.createElement('pre');
+            dataEl.textContent = JSON.stringify(data, null, 2);
+
+            box.appendChild(titleEl);
+            box.appendChild(hr);
+            box.appendChild(dataEl);
+            
+            container.appendChild(box);
+        }
+
+        document.getElementById('btn-qris').addEventListener('click', function() {
+            const button = this;
+            button.disabled = true;
+            button.textContent = "Processing...";
+            
+            const amount = document.getElementById('qris_amount').value;
+            const merchant = document.getElementById('qris_merchant').value;
+
+            fetch('/api/v1/pay-qris', { // <-- URL API Flask
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ amount: amount, merchant: merchant })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    displayResult('qris-results', 'QRIS Payment', 'Error', data);
+                } else {
+                    displayResult('qris-results', 'QRIS Payment', 'Success', data);
+                }
+            })
+            .catch(err => {
+                displayResult('qris-results', 'QRIS Payment', 'Error', { error: err.message });
+            })
+            .finally(() => {
+                button.disabled = false;
+                button.textContent = "Bayar Sekarang";
+            });
+        });
+
+        // --- 2. Panggilan API VA ---
+        document.getElementById('btn-va').addEventListener('click', function() {
+            const button = this;
+            button.disabled = true;
+            button.textContent = "Waiting for Webhook...";
+            
+            const amount = document.getElementById('va_amount').value;
+
+            // Ini mensimulasikan UI yang memicu panggilan backend,
+            // yang di dunia nyata akan dipicu oleh BANK.
+            fetch('/api/v1/webhook/bank-va', { // <-- URL API Flask
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ amount: amount, source: 'BCA' })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    displayResult('va-results', 'VA Top-Up', 'Error', data);
+                } else {
+                    displayResult('va-results', 'VA Top-Up', 'Success', data);
+                }
+            })
+            .catch(err => {
+                displayResult('va-results', 'VA Top-Up', 'Error', { error: err.message });
+            })
+            .finally(() => {
+                button.disabled = false;
+                button.textContent = "Simulasikan Penerimaan Webhook";
+            });
+        });
+
+        document.getElementById('btn-kyc').addEventListener('click', function() {
+            const button = this;
+            button.disabled = true;
+            button.textContent = "Verifying...";
+            
+            const nik = document.getElementById('kyc_nik').value;
+            const name = document.getElementById('kyc_name').value;
+
+            fetch('/api/v1/start-kyc', { // <-- URL API Flask
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ nik: nik, name: name })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    displayResult('kyc-results', 'eKYC Verification', 'Error', data);
+                } else {
+                    displayResult('kyc-results', 'eKYC Verification', 'Success', data);
+                }
+            })
+            .catch(err => {
+                displayResult('kyc-results', 'eKYC Verification', 'Error', { error: err.message });
+            })
+            .finally(() => {
+                button.disabled = false;
+                button.textContent = "Mulai Verifikasi (Call Dukcapil API)";
+            });
+        });
+
+    </script>
+</body>
+</html>
